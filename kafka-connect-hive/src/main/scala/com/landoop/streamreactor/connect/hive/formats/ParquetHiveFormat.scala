@@ -15,6 +15,14 @@ object ParquetHiveFormat extends HiveFormat with StrictLogging {
     Map("serialization.format" -> "1")
   )
 
+  /**
+    * 以parquet格式写入记录
+    *
+    * @param path
+    * @param schema
+    * @param fs
+    * @return
+    */
   override def writer(path: Path, schema: Schema)
                      (implicit fs: FileSystem): HiveWriter = new HiveWriter {
 
@@ -23,6 +31,12 @@ object ParquetHiveFormat extends HiveFormat with StrictLogging {
     val writer = com.landoop.streamreactor.connect.hive.parquet.parquetWriter(path, schema, ParquetSinkConfig(overwrite = true))
     var count = 0
 
+    /**
+      * 使用org.apache.parquet.hadoop.ParquetWriter写入记录到文件
+      *
+      * @param struct
+      * @return
+      */
     override def write(struct: Struct): Long = {
       writer.write(struct)
       count = count + 1

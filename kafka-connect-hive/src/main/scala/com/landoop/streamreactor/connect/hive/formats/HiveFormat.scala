@@ -45,9 +45,12 @@ object HiveFormat {
 /**
   * [[HiveWriter]] encapsulates the ability to write files
   * to HDFS in formats that are compatible with hive.
+  *
+  * 封装以兼容hive存储格式可以写文件到HDFS的HiveWriter
   */
 trait HiveWriter {
   def write(struct: Struct): Long
+
   def close(): Unit
 }
 
@@ -56,10 +59,13 @@ case class Record(struct: Struct, path: Path, offset: Int)
 /**
   * [[HiveReader]] encapsulates the ability to read files
   * from HDFS in formats that are compatible with hive.
+  *
+  * 封装以兼容hive存储格式可以从HDFS读取文件的HiveReader
   */
 trait HiveReader {
   // opens a new iterator to read the data from this reader
   // this method can be invoked multiple times, each returning a fresh iterator
   def iterator: Iterator[Record]
+
   def close(): Unit
 }

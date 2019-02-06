@@ -58,3 +58,9 @@ Enter a HiveQL query:
 
   Time taken: 0.12 seconds, Fetched: 3 row(s)
 ```
+
+To create a jar of a particular project:
+
+```
+./gradlew :kafka-connect-hive:shadowJar
+```

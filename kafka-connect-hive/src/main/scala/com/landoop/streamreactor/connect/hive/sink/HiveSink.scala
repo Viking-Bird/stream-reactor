@@ -27,17 +27,23 @@ import scala.util.{Failure, Success}
   *
   * The lifecycle of a sink is managed independently from other sinks.
   *
-  * @param tableName the name of the table to write out to
+  * 用于处理单表写入操作，一个HiveSink会持有多个HiveWriter实例，每个HiveWriter实例处理一个分区的记录，没有分区的情况下，HiveWriter负责处理单个文件。
+  * hive sink使用CommitPolicy来决定何时关闭一个文件以及新建一个文件。使用StageManager提交文件。sink的生命周期独立于其他sink
+  *
+  * @param tableName the name of the table to write out to 保存记录的表名
   */
 class HiveSink(tableName: TableName,
                config: HiveSinkConfig)
               (implicit client: IMetaStoreClient, fs: FileSystem) extends StrictLogging {
 
+  // 保存表配置信息
   private val tableConfig = config.tableOptions.find(_.tableName == tableName)
     .getOrElse(sys.error(s"No table config for ${tableName.value}"))
   private val writerManager = new HiveWriterManager(tableConfig.format, config.stageManager)
+  // 缓存存活对象的分区信息和在HDFS中的位置信息
   private val partitioner = new CachedPartitionHandler(tableConfig.partitioner)
 
+  // 缓存topic、partition和offset
   private val offsets = scala.collection.mutable.Map.empty[TopicPartition, Offset]
 
   private var table: Table = _
@@ -52,6 +58,11 @@ class HiveSink(tableName: TableName,
 
     def getOrCreateTable(): Table = {
 
+      /**
+        * 创建表
+        *
+        * @return
+        */
       def create = {
         val partstring = if (tableConfig.partitions.isEmpty) "<no-partitions>" else tableConfig.partitions.mkString(",")
         logger.info(s"Creating table in hive [${config.dbName.value}.${tableName.value}, partitions=$partstring]")
@@ -59,6 +70,8 @@ class HiveSink(tableName: TableName,
       }
 
       logger.debug(s"Fetching or creating table ${config.dbName.value}.${tableName.value}")
+
+      // 表存在的话，根据配置来决定表的创建策略
       client.tableExists(config.dbName.value, tableName.value) match {
         case true if tableConfig.overwriteTable =>
           hive.dropTable(config.dbName, tableName, true)
@@ -69,11 +82,11 @@ class HiveSink(tableName: TableName,
       }
     }
 
-    table = getOrCreateTable()
-    tableLocation = new Path(table.getSd.getLocation)
-    plan = hive.partitionPlan(table)
+    table = getOrCreateTable() // 获得或创建表
+    tableLocation = new Path(table.getSd.getLocation) // 获得表HDFS中的存储位置
+    plan = hive.partitionPlan(table) // 获取表的分区key信息
     metastoreSchema = tableConfig.evolutionPolicy.evolve(config.dbName, tableName, HiveSchemas.toKafka(table), schema)
-      .getOrElse(sys.error(s"Unable to retrieve or evolve schema for $schema"))
+      .getOrElse(sys.error(s"Unable to retrieve or evolve schema for $schema")) // 根据表的schema更新策略获取schema
 
     val mapperFns: Seq[Struct => Struct] = Seq(
       tableConfig.projection.map(new ProjectionMapper(_)),
@@ -90,6 +103,8 @@ class HiveSink(tableName: TableName,
     * If the table is not partitioned, then the directory returned
     * will be the location of the table itself, otherwise it will delegate to
     * the partitioning policy.
+    *
+    * 使用给定的struct返回相应的输出目录。如果表未分区，只返回表自身的位置，否则根据分区策略返回相应的表输出目录
     */
   private def outputDir(struct: Struct, plan: Option[PartitionPlan], table: Table): Path = {
     plan.fold(tableLocation) { plan =>
@@ -101,28 +116,47 @@ class HiveSink(tableName: TableName,
     }
   }
 
+  /**
+    * 保存record到hdfs中
+    *
+    * @param struct 包含schema、field->value的Struct对象
+    * @param tpo    包含topic、partition、offset的TopicPartitionOffset对象
+    */
   def write(struct: Struct, tpo: TopicPartitionOffset): Unit = {
 
     // if the schema has changed, or if we haven't yet had a struct, we need
     // to make sure the table exists, and that our table metadata is up to date
     // given that the table may have evolved.
+    // 如果当前的schema不是最新的，更新schema到最新
     if (struct.schema != lastSchema) {
       init(struct.schema)
       lastSchema = struct.schema
     }
 
+    // 获取hive->hdfs目录
     val dir = outputDir(struct, plan, table)
     val mapped = mapper(struct)
+    // 写入记录到hdfs中，返回写入记录数
     val (path, writer) = writerManager.writer(dir, tpo.toTopicPartition, mapped.schema)
     val count = writer.write(mapped)
 
-    if (fs.exists(path) && tableConfig.commitPolicy.shouldFlush(struct, tpo, path, count)) {
-      logger.debug(s"Flushing offsets for $dir")
+    // 如果文件应该被提交，则提交文件
+    //    if (fs.exists(path) && tableConfig.commitPolicy.shouldFlush(struct, tpo, path, count)) {
+    //      logger.info(s"Flushing offsets for $dir")
+    //      writerManager.flush(tpo, dir)
+    //      config.stageManager.commit(path, tpo)
+    //    }
+
+    if (fs.exists(path)) {
+      logger.info(s"Flushing offsets for $dir")
       writerManager.flush(tpo, dir)
       config.stageManager.commit(path, tpo)
     }
 
+    // 记录topic->partition->offset信息
     offsets.put(tpo.toTopicPartition, tpo.offset)
+
+    // 每次写完记录后，获取最新的schema
     lastSchema = struct.schema()
   }
 

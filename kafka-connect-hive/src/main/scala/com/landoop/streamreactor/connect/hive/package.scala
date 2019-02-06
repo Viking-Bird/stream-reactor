@@ -169,7 +169,15 @@ package object hive extends StrictLogging {
 
   // returns a partition generated from the input struct
   // each struct must supply a non null value for each partition key
+  /**
+    * 从指定的struct返回分区，每个struct必须给每个分区key提供一个非空值
+    *
+    * @param struct
+    * @param plan
+    * @return
+    */
   def partition(struct: Struct, plan: PartitionPlan): Partition = {
+    // 遍历所有分区key，找到分区key在struct中对应的字段的值
     val entries = plan.keys.map { key =>
       Option(struct.get(key.value)) match {
         case None => sys.error(s"Partition value for $key must be defined")

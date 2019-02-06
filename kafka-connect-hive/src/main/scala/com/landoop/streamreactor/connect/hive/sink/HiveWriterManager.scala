@@ -15,6 +15,9 @@ import org.apache.kafka.connect.data.Schema
   *
   * This class is not thread safe as it is not designed to be shared between concurrent
   * sinks, since file handles cannot be safely shared without considerable overhead.
+  *
+  * 负责管理HiveWriter实例的生命周期。一个给定的sink可以写入多个位置(分区)，因此将其提取到另一个类中很方便。
+  * 这个类不是线程安全的，因为它不是设计为在并发接收器之间共享的，因为在没有大量开销的情况下，文件句柄不能安全地共享。
   */
 class HiveWriterManager(format: HiveFormat,
                         stageManager: StageManager)
@@ -36,6 +39,8 @@ class HiveWriterManager(format: HiveFormat,
   /**
     * Returns a writer that can write records for a particular topic and partition.
     * The writer will create a file inside the given directory if there is no open writer.
+    *
+    * 给指定的topic和分区返回可以写入记录的writer。如果没有打开的writer，则在指定的目录中创建文件
     */
   def writer(dir: Path, tp: TopicPartition, schema: Schema): (Path, HiveWriter) = {
     writers.getOrElseUpdate(WriterKey(tp, dir), createWriter(dir, tp, schema))
@@ -49,14 +54,17 @@ class HiveWriterManager(format: HiveFormat,
     *
     * The directory is required, as there may be multiple writers, one per partition.
     * The offset is required as part of the commit filename.
+    *
+    * 刷新指定的topic partition and directory对应的已打开的writer。下次再请求指定的topic、partition、directory对应的writer时，将创建一个新的writer。
+    * 目录是必需的，因为可能有多个写入器，每个分区一个，该偏移量是提交文件名的一部分。
     */
   def flush(tpo: TopicPartitionOffset, dir: Path): Unit = {
     logger.info(s"Flushing writer for $tpo")
     val key = WriterKey(tpo.toTopicPartition, dir)
     writers.get(key).foreach { case (path, writer) =>
-      writer.close()
-      stageManager.commit(path, tpo)
-      writers.remove(key)
+      writer.close() // 写入orc记录
+      stageManager.commit(path, tpo) // 提交文件
+      writers.remove(key) // 移除HiveWriter
     }
   }
 

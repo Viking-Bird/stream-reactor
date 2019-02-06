@@ -9,6 +9,8 @@ import scala.util.{Success, Try}
 /**
   * A [[PartitionHandler]] that delegates to an underlying policy
   * and caches the results for the lifetime of this object.
+  *
+  * 缓存存活对象的分区信息和在HDFS中的位置信息，底层依赖于PartitionHandler
   */
 class CachedPartitionHandler(partitioner: PartitionHandler) extends PartitionHandler {
 
@@ -18,6 +20,7 @@ class CachedPartitionHandler(partitioner: PartitionHandler) extends PartitionHan
                     db: DatabaseName,
                     tableName: TableName)
                    (client: IMetaStoreClient, fs: FileSystem): Try[Path] = {
+    // 在分区cache中查找分区，如果有则返回。如果没有，则创建
     cache.get(partition) match {
       case Some(path) => Success(path)
       case _ =>

@@ -16,6 +16,7 @@ case class Offset(value: Long) {
 
 case class TopicPartition(topic: Topic, partition: Int) {
   def withOffset(offset: Offset): TopicPartitionOffset = TopicPartitionOffset(topic, partition, offset)
+
   def toKafka = new KafkaTopicPartition(topic.value, partition)
 }
 
@@ -32,12 +33,30 @@ case class TableName(value: String) {
 }
 
 // contains all the partition keys for a particular table
+/**
+  * 保存表的所有分区key信息
+  *
+  * @param tableName 表名
+  * @param keys      分区key集合
+  */
 case class PartitionPlan(tableName: TableName, keys: NonEmptyList[PartitionKey])
 
 // contains a partition key, which you can think of as like a partition column name
+/**
+  * 保存表的分区key
+  *
+  * @param value
+  */
 case class PartitionKey(value: String)
 
 // defines a partition key field
+/**
+  * 保存分区字段
+  *
+  * @param name    字段名称
+  * @param schema  字段schema定义
+  * @param comment 字段说明
+  */
 case class PartitionField(name: String, schema: Schema = Schema.STRING_SCHEMA, comment: Option[String] = None) {
   require(name != null && name.trim.nonEmpty)
 }

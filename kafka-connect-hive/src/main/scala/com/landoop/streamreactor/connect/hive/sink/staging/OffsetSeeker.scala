@@ -1,7 +1,6 @@
 package com.landoop.streamreactor.connect.hive.sink.staging
 
 import com.landoop.streamreactor.connect.hive._
-import com.typesafe.scalalogging.Logging
 import com.typesafe.scalalogging.slf4j.StrictLogging
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hive.metastore.IMetaStoreClient
@@ -24,8 +23,10 @@ class OffsetSeeker(filenamePolicy: FilenamePolicy) extends StrictLogging {
     try {
 
       // the table may not have been created, in which case we have no offsets defined
+      // 如果表没有创建，则没有offset信息
       if (client.tableExists(db.value, tableName.value)) {
 
+        // 获取hive表的LOCATION信息
         val loc = com.landoop.streamreactor.connect.hive.tableLocation(db, tableName)
         val prefix = filenamePolicy.prefix
 

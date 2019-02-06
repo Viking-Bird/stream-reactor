@@ -11,6 +11,8 @@ import scala.util.Try
 /**
   * An implementation of [[EvolutionPolicy]] that attempts to evolve
   * the metastore schema to match the input schema by adding missing fields.
+  *
+  * 增加缺失的schema字段，更新metastore schema
   */
 object AddEvolutionPolicy extends EvolutionPolicy with StrictLogging {
 
@@ -27,6 +29,7 @@ object AddEvolutionPolicy extends EvolutionPolicy with StrictLogging {
     if (missing.nonEmpty) {
       logger.info(s"Evolving hive metastore to add: ${missing.mkString(",")}")
 
+      // 使用alter更新表字段
       val table = client.getTable(dbName.value, tableName.value)
       val cols = table.getSd.getCols
       missing.foreach(field => cols.add(field))

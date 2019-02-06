@@ -12,6 +12,8 @@ import scala.concurrent.duration.FiniteDuration
   *
   * Typical implementations will flush based on number of records,
   * file size, or time since the file was opened.
+  *
+  * 负责决定文件何时被刷新(在磁盘上关闭，以及移动到可见)，一般情况下基于记录数量、文件大小和文件被打开的时间来刷新
   */
 trait CommitPolicy {
 
@@ -24,9 +26,11 @@ trait CommitPolicy {
     * Once a commit has taken place, a new file will be opened
     * for the next record.
     *
-    * @param tpo   the [[TopicPartitionOffset]] of the last record written
-    * @param path  the path of the file that the struct was written to
-    * @param count the number of records written thus far to the file
+    * 该方法在文件被写入之后调用，在这时如果文件应该被提交，该方法返回true，否则返回false。一旦发生了提交，新文件将为下一个记录打开
+    *
+    * @param tpo   the [[TopicPartitionOffset]] of the last record written 最后一次记录的TopicPartitionOffset
+    * @param path  the path of the file that the struct was written to 文件写入的路径
+    * @param count the number of records written thus far to the file 到目前为止写入文件的记录数
     *
     */
   def shouldFlush(struct: Struct, tpo: TopicPartitionOffset, path: Path, count: Long)
@@ -40,7 +44,12 @@ trait CommitPolicy {
   * - time since file was created
   * - number of files is reached
   *
-  * @param interval in millis
+  * CommitPolicy 的默认实现，将根据以下场景刷新输出文件：
+  * 文件大小达到限制
+  * 文件创建以来的时间
+  * 达到文件数量
+  *
+  * @param interval in millis 毫秒间隔
   */
 case class DefaultCommitPolicy(fileSize: Option[Long],
                                interval: Option[FiniteDuration],
@@ -49,7 +58,7 @@ case class DefaultCommitPolicy(fileSize: Option[Long],
   override def shouldFlush(struct: Struct, tpo: TopicPartitionOffset, path: Path, count: Long)
                           (implicit fs: FileSystem): Boolean = {
     val stat = fs.getFileStatus(path)
-    val open_time = System.currentTimeMillis() - stat.getModificationTime
+    val open_time = System.currentTimeMillis() - stat.getModificationTime // 计算文件打开时间
     fileSize.exists(_ <= stat.getLen) || interval.exists(_.toMillis <= open_time) || fileCount.exists(_ <= count)
   }
 }

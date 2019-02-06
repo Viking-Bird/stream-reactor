@@ -15,6 +15,8 @@ import scala.util.Try
   * This means that every field in the metastore schema must be
   * present in the incoming records, and the incoming records
   * cannot contain any extra fields.
+  *
+  * 要求input schema必须与metastore schema相等。也就是说输入记录中的每个字段必须存在于metastore schema中，输入记录中不能包含额外的字段
   */
 object StrictEvolutionPolicy extends EvolutionPolicy with StrictLogging {
 

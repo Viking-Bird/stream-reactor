@@ -16,6 +16,8 @@ import scala.util.Try
   * present in the incoming records, but the records may have
   * additional fields. These additional fields will be dropped
   * before the data is written out.
+  *
+  * 要求input schema与metastore schema相等或者是metastore schema的超集。也就是说在metastore schema中的每个字段必须在输入记录中存在，在写入数据之前，输入记录中多余的字段会被drop掉
   */
 object IgnoreEvolutionPolicy extends EvolutionPolicy with StrictLogging {
 

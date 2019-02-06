@@ -5,6 +5,9 @@ import org.apache.kafka.connect.sink.SinkRecord
 
 import scala.collection.JavaConverters._
 
+/**
+  * 负责对topic的value值进行转换
+  */
 object ValueConverter {
   def apply(record: SinkRecord): Struct = record.value match {
     case struct: Struct => StructValueConverter.convert(struct)

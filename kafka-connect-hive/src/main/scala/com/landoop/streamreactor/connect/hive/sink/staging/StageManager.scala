@@ -15,26 +15,57 @@ import com.landoop.streamreactor.connect.hive.formats.HiveWriter
   *
   * After a file has been closed, commit will be called with the path
   * and the stage manager will make the file visible.
+  *
+  * StageManager 负责新文件的创建(staging)和发布(committing)。当HiveWriter需要向新文件写入时，它将调用携带有partition和table location的stage方法，新文件将使用TopicPartitionOffset信息生成。
+  * 文件被关闭之后，携带有path的commit方法将被调用，stage manager将会使文件可见
   */
 class StageManager(filenamePolicy: FilenamePolicy) extends StrictLogging {
 
+  /**
+    * 生成暂存文件的名称
+    *
+    * @param tp
+    * @return
+    */
   private def stageFilename(tp: TopicPartition) =
     s".${filenamePolicy.prefix}_${tp.topic.value}_${tp.partition}"
 
+  /**
+    * 生成最终提交的文件的名称
+    *
+    * @param tpo
+    * @return
+    */
   private def finalFilename(tpo: TopicPartitionOffset) =
     s"${filenamePolicy.prefix}_${tpo.topic.value}_${tpo.partition}_${tpo.offset.value}"
 
+  /**
+    * 暂存文件
+    *
+    * @param dir
+    * @param tp
+    * @param fs
+    * @return
+    */
   def stage(dir: Path, tp: TopicPartition)(implicit fs: FileSystem): Path = {
-    val filename = stageFilename(tp)
+    val filename = stageFilename(tp) // 获取暂存文件的名称
     val stagePath = new Path(dir, filename)
-    fs.delete(stagePath, false)
+    fs.delete(stagePath, false) // 递归删除文件
     stagePath
   }
 
+  /**
+    * 提交文件
+    *
+    * @param stagePath
+    * @param tpo
+    * @param fs
+    * @return
+    */
   def commit(stagePath: Path, tpo: TopicPartitionOffset)(implicit fs: FileSystem): Path = {
     val finalPath = new Path(stagePath.getParent, finalFilename(tpo))
     logger.info(s"Commiting file $stagePath=>$finalPath")
-    fs.rename(stagePath, finalPath)
+    fs.rename(stagePath, finalPath) //将暂存路径重命名
     finalPath
   }
 }
