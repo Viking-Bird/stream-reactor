@@ -72,6 +72,5 @@ case class DefaultCommitPolicy(fileSize: Option[Long],
       * stat.getModificationTime：文件修改时间，以毫秒为单位
       */
     fileSize.exists(_ <= stat.getLen) || interval.exists(_.toMillis <= open_time) || fileCount.exists(_ <= count)
-    true
   }
 }
