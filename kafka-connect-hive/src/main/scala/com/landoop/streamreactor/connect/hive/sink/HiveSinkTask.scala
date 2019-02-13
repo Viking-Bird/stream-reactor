@@ -82,7 +82,6 @@ class HiveSinkTask extends SinkTask with StrictLogging {
         Offset(record.kafkaOffset)
       )
       val tp = tpo.toTopicPartition
-      logger.info("接收到的值是----" + record.value().toString)
       // 根据TopicPartitionOffset获取HiveSink操作对象
       sinks.getOrElse(tp, sys.error(s"Could not find $tp in sinks $sinks")).write(struct, tpo)
     }

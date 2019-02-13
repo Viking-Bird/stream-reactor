@@ -2,8 +2,8 @@ package com.landoop.streamreactor.connect.hive.sink
 
 import com.landoop.streamreactor.connect.hive
 import com.landoop.streamreactor.connect.hive._
-import com.landoop.streamreactor.connect.hive.sink.config.HiveSinkConfig
 import com.landoop.streamreactor.connect.hive.formats.HiveWriter
+import com.landoop.streamreactor.connect.hive.sink.config.HiveSinkConfig
 import com.landoop.streamreactor.connect.hive.sink.mapper.{DropPartitionValuesMapper, MetastoreSchemaAlignMapper, ProjectionMapper}
 import com.landoop.streamreactor.connect.hive.sink.partitioning.CachedPartitionHandler
 import com.landoop.streamreactor.connect.hive.sink.staging.{CommitPolicy, StageManager}
@@ -73,11 +73,11 @@ class HiveSink(tableName: TableName,
 
       // 表存在的话，根据配置来决定表的创建策略
       client.tableExists(config.dbName.value, tableName.value) match {
-        case true if tableConfig.overwriteTable =>
+        case true if tableConfig.overwriteTable => // 删掉之前的表重新创建
           hive.dropTable(config.dbName, tableName, true)
           create
-        case true => client.getTable(config.dbName.value, tableName.value)
-        case false if tableConfig.createTable => create
+        case true => client.getTable(config.dbName.value, tableName.value) // 直接返回
+        case false if tableConfig.createTable => create // 直接创建表
         case false => throw new RuntimeException(s"Table ${config.dbName.value}.${tableName.value} does not exist")
       }
     }
@@ -136,21 +136,16 @@ class HiveSink(tableName: TableName,
     // 获取hive->hdfs目录
     val dir = outputDir(struct, plan, table)
     val mapped = mapper(struct)
-    // 写入记录到hdfs中，返回写入记录数
+
     val (path, writer) = writerManager.writer(dir, tpo.toTopicPartition, mapped.schema)
+    // 保存记录到ORC StructVectorWriter中
     val count = writer.write(mapped)
 
     // 如果文件应该被提交，则提交文件
-    //    if (fs.exists(path) && tableConfig.commitPolicy.shouldFlush(struct, tpo, path, count)) {
-    //      logger.info(s"Flushing offsets for $dir")
-    //      writerManager.flush(tpo, dir)
-    //      config.stageManager.commit(path, tpo)
-    //    }
-
-    if (fs.exists(path)) {
+    if (fs.exists(path) && tableConfig.commitPolicy.shouldFlush(struct, tpo, path, count)) {
       logger.info(s"Flushing offsets for $dir")
-      writerManager.flush(tpo, dir)
-      config.stageManager.commit(path, tpo)
+      writerManager.flush(tpo, dir) // 清空ORC StructVectorWriter中中的记录，刷新数据到HDFS
+      config.stageManager.commit(path, tpo) // 重命名HDFS中的临时文件
     }
 
     // 记录topic->partition->offset信息

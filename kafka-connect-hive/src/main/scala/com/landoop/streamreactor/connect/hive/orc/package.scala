@@ -7,9 +7,18 @@ import org.apache.orc._
 
 package object orc {
 
+  /**
+    * 创建写ORC数据的Writer对象
+    * @param path
+    * @param schema
+    * @param config
+    * @param fs
+    * @return
+    */
   def createOrcWriter(path: Path, schema: TypeDescription, config: OrcSinkConfig)
                      (implicit fs: FileSystem): Writer = {
 
+    // 设置写ORC文件时的配置
     val options = OrcFile.writerOptions(null, fs.getConf).setSchema(schema)
 
     options.compress(config.compressionKind)
@@ -22,9 +31,11 @@ package object orc {
     config.blockSize.foreach(options.blockSize)
     config.stripeSize.foreach(options.stripeSize)
 
+    // 如果指定的path已存在于HDFS中，且overwrite为true，则删除已存在的path
     if (config.overwrite && fs.exists(path))
       fs.delete(path, false)
 
+    // 创建Writer对象
     OrcFile.createWriter(path, options)
   }
 
@@ -38,7 +49,7 @@ package object orc {
 case class OrcSourceConfig()
 
 case class OrcSinkConfig(overwrite: Boolean = false,
-                         batchSize: Int = 1024, // orc default is 1024
+                         batchSize: Int = 5, // orc default is 1024
                          encodingStrategy: EncodingStrategy = EncodingStrategy.COMPRESSION,
                          compressionKind: CompressionKind = CompressionKind.SNAPPY,
                          blockPadding: Boolean = true,

@@ -1,6 +1,7 @@
 package com.landoop.streamreactor.connect.hive.sink.staging
 
 import com.landoop.streamreactor.connect.hive.TopicPartitionOffset
+import com.typesafe.scalalogging.slf4j.StrictLogging
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.kafka.connect.data.Struct
 
@@ -53,12 +54,24 @@ trait CommitPolicy {
   */
 case class DefaultCommitPolicy(fileSize: Option[Long],
                                interval: Option[FiniteDuration],
-                               fileCount: Option[Long]) extends CommitPolicy {
+                               fileCount: Option[Long]) extends CommitPolicy with StrictLogging {
   require(fileSize.isDefined || interval.isDefined || fileCount.isDefined)
+
   override def shouldFlush(struct: Struct, tpo: TopicPartitionOffset, path: Path, count: Long)
                           (implicit fs: FileSystem): Boolean = {
+    // 返回文件状态
     val stat = fs.getFileStatus(path)
     val open_time = System.currentTimeMillis() - stat.getModificationTime // 计算文件打开时间
+
+    logger.info(s"DefaultCommitPolicy info: [fileSize: $fileSize,interval: $interval,fileCount: $fileCount],parameter: [Struct: $struct,TopicPartitionOffset: $tpo,path: $path,count: $count]")
+
+    logger.info(s"文件大小比较：${fileSize.exists(_ <= stat.getLen)}-->${stat.getLen}, 打开时间比较：${interval.exists(_.toMillis <= open_time)}, 文件数量比较: ${fileCount.exists(_ <= count)}")
+
+    /**
+      * stat.getLen：文件长度，以字节为单位
+      * stat.getModificationTime：文件修改时间，以毫秒为单位
+      */
     fileSize.exists(_ <= stat.getLen) || interval.exists(_.toMillis <= open_time) || fileCount.exists(_ <= count)
+    true
   }
 }

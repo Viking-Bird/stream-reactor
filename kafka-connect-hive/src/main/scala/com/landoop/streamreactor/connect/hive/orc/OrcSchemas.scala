@@ -7,8 +7,17 @@ import org.apache.orc.TypeDescription.Category
 
 import scala.collection.JavaConverters._
 
+/**
+  * 提供kafka schema和ORC schema互转功能
+  */
 object OrcSchemas {
 
+  /**
+    * 将ORC schema转换为kafka schema
+    *
+    * @param schema
+    * @return
+    */
   def toKafka(schema: TypeDescription): Schema = schema.getCategory match {
     case Category.BOOLEAN => Schema.OPTIONAL_BOOLEAN_SCHEMA
     case Category.BYTE => Schema.OPTIONAL_INT8_SCHEMA
@@ -26,6 +35,12 @@ object OrcSchemas {
     case Category.STRUCT => toKafkaStruct(schema)
   }
 
+  /**
+    * 将ORC schema转换为kafka schema
+    *
+    * @param schema orc schema
+    * @return
+    */
   def toKafkaStruct(schema: TypeDescription): Schema = {
     import scala.collection.JavaConverters._
     val builder = SchemaBuilder.struct().name("from_orc")
@@ -35,6 +50,12 @@ object OrcSchemas {
     builder.build()
   }
 
+  /**
+    * 将kafka schema转换为ORC schema
+    *
+    * @param schema
+    * @return
+    */
   def toOrc(schema: Schema): TypeDescription = {
     schema.`type`() match {
       case Schema.Type.STRING if schema.name() == Decimal.LOGICAL_NAME => TypeDescription.createDecimal()

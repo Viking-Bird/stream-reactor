@@ -62,8 +62,9 @@ class HiveWriterManager(format: HiveFormat,
     logger.info(s"Flushing writer for $tpo")
     val key = WriterKey(tpo.toTopicPartition, dir)
     writers.get(key).foreach { case (path, writer) =>
-      writer.close() // 写入orc记录
-      stageManager.commit(path, tpo) // 提交文件
+      writer.close() // 写入记录到ORC文件
+      logger.info(s"Writer info: ${writer.getClass.getName}")
+      stageManager.commit(path, tpo) // 重命名hdfs中的临时文件为存放数据的正式文件
       writers.remove(key) // 移除HiveWriter
     }
   }

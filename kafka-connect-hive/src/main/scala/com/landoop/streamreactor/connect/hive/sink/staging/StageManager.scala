@@ -22,7 +22,7 @@ import com.landoop.streamreactor.connect.hive.formats.HiveWriter
 class StageManager(filenamePolicy: FilenamePolicy) extends StrictLogging {
 
   /**
-    * 生成暂存文件的名称
+    * 生成临时文件的名称
     *
     * @param tp
     * @return
@@ -40,7 +40,7 @@ class StageManager(filenamePolicy: FilenamePolicy) extends StrictLogging {
     s"${filenamePolicy.prefix}_${tpo.topic.value}_${tpo.partition}_${tpo.offset.value}"
 
   /**
-    * 暂存文件
+    * 获取临时文件名称
     *
     * @param dir
     * @param tp
@@ -48,14 +48,14 @@ class StageManager(filenamePolicy: FilenamePolicy) extends StrictLogging {
     * @return
     */
   def stage(dir: Path, tp: TopicPartition)(implicit fs: FileSystem): Path = {
-    val filename = stageFilename(tp) // 获取暂存文件的名称
+    val filename = stageFilename(tp) // 获取临时文件的名称
     val stagePath = new Path(dir, filename)
-    fs.delete(stagePath, false) // 递归删除文件
+    fs.delete(stagePath, false)
     stagePath
   }
 
   /**
-    * 提交文件
+    * 重命名临时文件
     *
     * @param stagePath
     * @param tpo
@@ -65,7 +65,7 @@ class StageManager(filenamePolicy: FilenamePolicy) extends StrictLogging {
   def commit(stagePath: Path, tpo: TopicPartitionOffset)(implicit fs: FileSystem): Path = {
     val finalPath = new Path(stagePath.getParent, finalFilename(tpo))
     logger.info(s"Commiting file $stagePath=>$finalPath")
-    fs.rename(stagePath, finalPath) //将暂存路径重命名
+    fs.rename(stagePath, finalPath) //将临时文件夹重命名
     finalPath
   }
 }
